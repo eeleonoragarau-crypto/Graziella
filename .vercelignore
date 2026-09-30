@@ -1,0 +1,7 @@
+node_modules
+dist
+shots
+public/sets
+public/hdri
+.DS_Store
+.git
