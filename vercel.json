@@ -1,0 +1,6 @@
+{
+  "framework": "vite",
+  "installCommand": "printf '//npm.fontawesome.com/:_authToken=%s\\n' \"$FONTAWESOME_NPM_AUTH_TOKEN\" >> .npmrc && npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist"
+}

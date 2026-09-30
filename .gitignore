@@ -1,0 +1,7 @@
+node_modules
+dist
+shots
+.DS_Store
+# CC0 assets: streamed from Poly Haven, or fetched locally with tools/fetch-assets.mjs
+public/sets/
+public/hdri/

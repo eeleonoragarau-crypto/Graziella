@@ -1,0 +1,38 @@
+// Paint UI: custom colour through the picker, finishes, fenders.
+import puppeteer from 'puppeteer-core'
+const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--no-sandbox', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--window-size=1500,940'] })
+const page = await browser.newPage()
+await page.setViewport({ width: 1500, height: 940 })
+const logs = []
+page.on('console', (m) => { if (m.type() === 'error') logs.push(m.text().slice(0, 300)) })
+page.on('pageerror', (e) => logs.push('PAGEERROR ' + e.message))
+await page.goto('http://127.0.0.1:5218/', { waitUntil: 'domcontentloaded' })
+await page.evaluate(() => localStorage.clear())
+await page.reload({ waitUntil: 'domcontentloaded' })
+await page.waitForFunction('window.__gsReady === true', { timeout: 120000 })
+await page.evaluate(() => { window.__gs.settings.pathTracing = false })
+// open the custom swatch
+await page.click('.swatch-custom')
+await new Promise((r) => setTimeout(r, 300))
+// drag in the saturation/value field and on the hue strip
+const f = await page.$('.picker-field'), h = await page.$('.picker-hue')
+const fb = await f.boundingBox(), hb = await h.boundingBox()
+await page.mouse.move(hb.x + hb.width * 0.55, hb.y + hb.height / 2); await page.mouse.down(); await page.mouse.move(hb.x + hb.width * 0.52, hb.y + hb.height / 2, { steps: 4 }); await page.mouse.up()
+await page.mouse.move(fb.x + fb.width * 0.7, fb.y + fb.height * 0.35); await page.mouse.down(); await page.mouse.move(fb.x + fb.width * 0.78, fb.y + fb.height * 0.4, { steps: 5 }); await page.mouse.up()
+await new Promise((r) => setTimeout(r, 300))
+const clickText = async (sel, text) => page.evaluate((sel, text) => { const el = [...document.querySelectorAll(sel)].find((e) => e.textContent.trim().startsWith(text)); el?.click(); return !!el }, sel, text)
+await clickText('.finish', 'Perlata')
+await clickText('.seg-opt', 'In tinta')
+await new Promise((r) => setTimeout(r, 1500))
+const st = await page.evaluate(() => ({ bike: JSON.parse(localStorage.getItem('graziella-studio-v1') || '{}').bike, paint: '#' + window.__gs.M.paint.color.getHexString(), irid: window.__gs.M.paint.iridescence, fender: window.__gs.bike.getObjectByName('parafangoAnt').material.name }))
+console.log(JSON.stringify(st))
+await page.screenshot({ path: 'shots/sets/paint_ui.png' })
+// hex entry
+await page.click('.picker-hex', { clickCount: 3 })
+await page.keyboard.type('#E2B04A')
+await page.keyboard.press('Enter')
+await new Promise((r) => setTimeout(r, 800))
+console.log(JSON.stringify(await page.evaluate(() => ({ paint: '#' + window.__gs.M.paint.color.getHexString(), accent: getComputedStyle(document.documentElement).getPropertyValue('--accent') }))))
+await page.screenshot({ path: 'shots/sets/paint_ui2.png' })
+console.log(logs.length ? logs.join('\n') : 'no errors')
+await browser.close()

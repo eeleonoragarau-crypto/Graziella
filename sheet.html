@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Graziella · Libreria adesivi</title>
+    <link rel="icon" href="data:," />
+    <style>
+      :root {
+        --bg: #e8e5df;
+        --ink: #1d1c1a;
+        --muted: #77726a;
+        --c1: #cfcac2;
+        --c2: #e2ded7;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--ink); font: 12px/1.35 ui-monospace, 'SF Mono', Menlo, monospace; }
+      header { padding: 28px 32px 8px; display: flex; align-items: baseline; gap: 18px; }
+      header h1 { margin: 0; font: 600 20px/1 system-ui, sans-serif; letter-spacing: -0.01em; }
+      header .fonts { color: var(--muted); }
+      header .fonts b.bad { color: #b3261e; }
+      section { padding: 10px 32px 18px; }
+      section h2 { margin: 12px 0 10px; font: 600 13px/1 system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+      .grid { display: grid; grid-template-columns: repeat(8, 236px); gap: 14px; }
+      .cell { width: 236px; }
+      .card {
+        width: 236px; height: 236px; display: flex; align-items: center; justify-content: center; border-radius: 6px; overflow: hidden;
+        background-color: var(--c2);
+        background-image: conic-gradient(var(--c1) 25%, var(--c2) 0 50%, var(--c1) 0 75%, var(--c2) 0);
+        background-size: 18px 18px;
+      }
+      .card canvas, .card img { max-width: 90%; max-height: 90%; display: block; }
+      .card.dark { background: #141414; }
+      .card.paint { background-image: none; }
+      .meta { margin-top: 6px; }
+      .meta .n { font: 600 13px/1.2 system-ui, sans-serif; }
+      .meta .d { color: var(--muted); }
+      .foilrow { display: grid; grid-template-columns: repeat(3, 236px) 40px repeat(3, 236px); gap: 14px; margin-bottom: 14px; }
+      .single { padding: 24px 32px; display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+      .single .big {
+        padding: 20px; border-radius: 8px;
+        background-color: var(--c2);
+        background-image: conic-gradient(var(--c1) 25%, var(--c2) 0 50%, var(--c1) 0 75%, var(--c2) 0);
+        background-size: 24px 24px;
+      }
+      .single .big canvas { display: block; }
+      .single .big.dark { background: #141414; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Graziella · Libreria adesivi</h1>
+      <span class="count"></span>
+      <span class="fonts"></span>
+    </header>
+    <main id="root"></main>
+    <script type="module">
+      import { LIBRARY, loadStickerFonts, drawSticker, drawFoilMask } from '/src/engine/stickers/library.js'
+
+      const params = new URLSearchParams(location.search)
+      const only = params.get('id')
+      const PAINTS = ['#b7322c', '#2f5d8a', '#f1ece2', '#1f1f1f', '#8fb9c9', '#2e6b4a']
+      const CATS = [['classici', 'Classici'], ['pop', 'Pop'], ['riviera', 'Riviera'], ['retro', 'Retrò']]
+      const root = document.getElementById('root')
+      const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e }
+
+      // die-cut preview: the real engine if it is there, otherwise a quick dilation
+      let makeSticker = null
+      try { ({ makeSticker } = await import('/src/engine/stickers/artwork.js')) } catch (e) { console.warn('artwork.js not available, using approximate die-cut', e) }
+      function approxBorder(src, frac = 0.035) {
+        const B = Math.round(Math.max(src.width, src.height) * frac)
+        const c = document.createElement('canvas'); c.width = src.width + B * 2; c.height = src.height + B * 2
+        const x = c.getContext('2d')
+        const sil = document.createElement('canvas'); sil.width = src.width; sil.height = src.height
+        const s = sil.getContext('2d'); s.drawImage(src, 0, 0); s.globalCompositeOperation = 'source-in'; s.fillStyle = '#f7f6f1'; s.fillRect(0, 0, sil.width, sil.height)
+        for (const f of [1, 0.66, 0.33]) for (let a = 0; a < 40; a++) { const t = (a / 40) * Math.PI * 2; x.drawImage(sil, B + Math.cos(t) * B * f, B + Math.sin(t) * B * f) }
+        x.drawImage(src, B, B)
+        return c
+      }
+      function dieCut(entry, canvas, foil) {
+        if (!entry.border) return canvas
+        if (makeSticker) { try { return makeSticker(canvas, { border: true, foil, paper: entry.finish === 'carta' }).colorCanvas } catch (e) { console.warn(e) } }
+        return approxBorder(canvas)
+      }
+      function overlay(art, mask) {
+        const c = document.createElement('canvas'); c.width = art.width; c.height = art.height
+        const x = c.getContext('2d')
+        x.drawImage(art, 0, 0)
+        const t = document.createElement('canvas'); t.width = art.width; t.height = art.height
+        const tx = t.getContext('2d'); tx.drawImage(mask, 0, 0); tx.globalCompositeOperation = 'source-in'; tx.fillStyle = 'rgba(255, 0, 170, 0.55)'; tx.fillRect(0, 0, t.width, t.height)
+        x.drawImage(t, 0, 0)
+        return c
+      }
+      const card = (canvas, cls = '') => { const c = el('div', 'card ' + cls); c.appendChild(canvas); return c }
+      const meta = (e) => el('div', 'meta', `<div class="n">${e.name}</div><div class="d">${e.id}</div><div class="d">${e.finish} · ${e.border ? 'bordo' : 'senza bordo'} · ${Math.round(e.size * 1000)} mm · ${e.w}×${e.h}</div>`)
+
+      const report = await loadStickerFonts()
+      window.__fontReport = report
+      const bad = report.filter((f) => !f.ok)
+      document.querySelector('.fonts').innerHTML = bad.length
+        ? 'font mancanti: ' + bad.map((f) => `<b class="bad">${f.family} ${f.weight}</b>`).join(', ')
+        : `font ok (${report.length})`
+      document.querySelector('.count').textContent = `${LIBRARY.length} adesivi`
+
+      const errors = []
+      const safe = (fn, id) => { try { return fn() } catch (e) { errors.push(id + ': ' + e.message); console.error(id, e); const c = document.createElement('canvas'); c.width = c.height = 8; return c } }
+
+      if (only) {
+        const e = LIBRARY.find((x) => x.id === only)
+        const wrap = el('div', 'single')
+        if (e) {
+          const scale = +(params.get('scale') || 1)
+          const art = safe(() => drawSticker(e, { scale }), e.id)
+          const b = el('div', 'big'); b.appendChild(art); wrap.appendChild(b)
+          const mask = e.foil ? safe(() => drawFoilMask(e, { scale }), e.id + ':foil') : null
+          if (mask) { const m = el('div', 'big dark'); m.appendChild(mask); wrap.appendChild(m); const o = el('div', 'big'); o.appendChild(overlay(art, mask)); wrap.appendChild(o) }
+          wrap.appendChild(meta(e))
+        }
+        root.appendChild(wrap)
+      } else {
+        const arts = new Map()
+        for (const [cat, label] of CATS) {
+          const sec = el('section'); sec.appendChild(el('h2', null, label))
+          const grid = el('div', 'grid')
+          for (const e of LIBRARY.filter((x) => x.category === cat)) {
+            const art = safe(() => drawSticker(e, { scale: 0.5 }), e.id)
+            arts.set(e.id, art)
+            const cell = el('div', 'cell'); cell.dataset.id = e.id
+            cell.appendChild(card(art)); cell.appendChild(meta(e)); grid.appendChild(cell)
+          }
+          sec.appendChild(grid); root.appendChild(sec)
+        }
+        // foil masks
+        const fsec = el('section'); fsec.appendChild(el('h2', null, 'Maschere foil · arte / maschera / sovrapposizione'))
+        const foils = LIBRARY.filter((e) => typeof e.foil === 'function')
+        for (let i = 0; i < foils.length; i += 2) {
+          const row = el('div', 'foilrow')
+          for (const e of foils.slice(i, i + 2)) {
+            const art = drawSticker(e, { scale: 0.5 })
+            const mask = safe(() => drawFoilMask(e, { scale: 0.5 }), e.id + ':foil')
+            const a = el('div', 'cell'); a.appendChild(card(art)); a.appendChild(meta(e)); row.appendChild(a)
+            const m = el('div', 'cell'); m.appendChild(card(mask, 'dark')); m.appendChild(el('div', 'meta', '<div class="d">maschera (bianco = foil)</div>')); row.appendChild(m)
+            const o = el('div', 'cell'); o.appendChild(card(overlay(art, mask))); o.appendChild(el('div', 'meta', '<div class="d">allineamento</div>')); row.appendChild(o)
+            if (row.children.length === 3) row.appendChild(el('div'))
+          }
+          fsec.appendChild(row)
+        }
+        root.appendChild(fsec)
+        // die-cut preview on painted frames
+        const psec = el('section'); psec.appendChild(el('h2', null, 'Anteprima fustella su vernice'))
+        const pgrid = el('div', 'grid')
+        LIBRARY.forEach((e, i) => {
+          const full = drawSticker(e, { scale: 0.5 })
+          const mask = e.foil ? drawFoilMask(e, { scale: 0.5 }) : null
+          const cut = safe(() => dieCut(e, full, mask), e.id + ':cut')
+          const c = card(cut, 'paint'); c.style.background = PAINTS[i % PAINTS.length]
+          cut.style.filter = e.border ? 'drop-shadow(0 2px 3px rgba(0,0,0,.28))' : 'none'
+          const cell = el('div', 'cell'); cell.appendChild(c); cell.appendChild(el('div', 'meta', `<div class="d">${e.id}</div>`)); pgrid.appendChild(cell)
+        })
+        psec.appendChild(pgrid); root.appendChild(psec)
+      }
+
+      // full-resolution dumps for the screenshot tool
+      window.__exportAll = async (ids) => {
+        const out = []
+        for (const e of LIBRARY) {
+          if (ids && ids.length && !ids.includes(e.id)) continue
+          const art = drawSticker(e)
+          const rec = { id: e.id, art: art.toDataURL('image/png') }
+          const mask = drawFoilMask(e)
+          if (mask) rec.mask = mask.toDataURL('image/png')
+          if (e.border) { const cut = dieCut(e, art, mask); rec.cut = cut.toDataURL('image/png') }
+          out.push(rec)
+        }
+        return out
+      }
+      window.__sheetErrors = errors
+      window.__sheetReady = true
+    </script>
+  </body>
+</html>

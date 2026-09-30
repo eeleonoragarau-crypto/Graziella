@@ -1,0 +1,17 @@
+import puppeteer from 'puppeteer-core'
+const pt = process.argv[2] === 'pt'
+const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--no-sandbox', '--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] })
+const page = await browser.newPage()
+await page.setViewport({ width: 1600, height: 1000 })
+page.on('pageerror', (e) => console.log('PAGEERROR ' + e.stack))
+await page.goto('http://127.0.0.1:5218/', { waitUntil: 'domcontentloaded' })
+await page.waitForFunction('window.__gsReady === true', { timeout: 90000 })
+await new Promise((r) => setTimeout(r, 1000))
+await page.evaluate((pt) => { window.__gs.settings.pathTracing = pt }, pt)
+await page.click('.surprise')
+await new Promise((r) => setTimeout(r, 2600))
+if (pt) await page.waitForFunction(() => window.__gs.mode === 'pt' && window.__gs.pt.samples >= 160, { timeout: 240000, polling: 400 })
+const n = await page.evaluate(() => window.__gs.stickers.list.map((s) => s.artId.replace('lib:', '') + '@' + s.part).join(', '))
+await page.screenshot({ path: `shots/surprise${pt ? '_pt' : ''}.png` })
+console.log(n)
+await browser.close()
